@@ -1,0 +1,20 @@
+load("//bazel:defs.bzl", "walgit_rust_crate")
+
+walgit_rust_crate(
+    name = "walgit-config",
+    crate_name = "walgit_config",
+    compile_data = [
+        "//:walgit.example.toml",
+        "//:walgit.standalone.toml",
+    ],
+    deps = [
+        "@walgit_crates//:anyhow",
+        "@walgit_crates//:bytesize",
+        "@walgit_crates//:hex",
+        "@walgit_crates//:humantime-serde",
+        "@walgit_crates//:serde",
+        "@walgit_crates//:sha2",
+        "@walgit_crates//:toml",
+        "@walgit_crates//:tracing",
+    ],
+)

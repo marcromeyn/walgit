@@ -1,0 +1,52 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_rust//rust:defs.bzl", "rust_test")
+load("@rules_rust_prost//:defs.bzl", "rust_prost_library", "rust_prost_transform")
+
+package(default_visibility = ["//visibility:public"])
+
+rust_prost_transform(
+    name = "walgit_support",
+    crate_name = "walgit_proto",
+    srcs = ["src/support.rs"],
+    deps = [
+        "@walgit_crates//:anyhow",
+        "@walgit_crates//:bytes",
+        "@walgit_crates//:hex",
+        "@walgit_crates//:prost",
+        "@walgit_crates//:prost-types",
+        "@walgit_crates//:sha2",
+    ],
+)
+
+proto_library(
+    name = "walgit_proto",
+    srcs = ["proto/walgit/v1/wal.proto"],
+    data = [":walgit_support"],
+    strip_import_prefix = "proto",
+    deps = ["@com_google_protobuf//:timestamp_proto"],
+)
+
+# Bazel-native replacement for build.rs. The toolchain carries bytes=. exactly
+# like prost_build::Config::bytes(["."]) in the Cargo path.
+rust_prost_library(
+    name = "walgit-proto",
+    proto = ":walgit_proto",
+)
+
+# This exact source is also a Cargo integration test. Compiling it here against
+# the rust_prost_library-backed crate makes API drift fail either build lane.
+rust_test(
+    name = "api-identity-test",
+    crate_name = "walgit_proto_api_identity",
+    crate_root = "tests/api_identity.rs",
+    srcs = ["tests/api_identity.rs"],
+    edition = "2024",
+    deps = [":walgit-proto"],
+)
+
+test_suite(
+    name = "all-tests",
+    tests = [
+        ":api-identity-test",
+    ],
+)

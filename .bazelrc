@@ -1,0 +1,52 @@
+# Walgit Bazel configuration: hermetic local builds by default; remotes opt in.
+common --incompatible_strict_action_env
+common --enable_platform_specific_config
+common --disk_cache=~/.cache/walgit-bazel-disk-cache
+common --repository_cache=~/.cache/walgit-bazel-repo-cache
+build --java_runtime_version=remotejdk_21
+build --tool_java_runtime_version=remotejdk_21
+test --test_output=errors
+
+# Credentials and personal flags live only in this ignored file.
+try-import %workspace%/user.bazelrc
+
+build:local --remote_cache=
+build:local --remote_executor=
+build:local --remote_local_fallback=false
+
+# Opt-in BuildBuddy cache/BES. Authentication belongs in user.bazelrc or CI.
+common:buildbuddy --bes_backend=grpcs://remote.buildbuddy.io
+common:buildbuddy --bes_results_url=https://app.buildbuddy.io/invocation/
+common:buildbuddy --remote_cache=grpcs://remote.buildbuddy.io
+common:buildbuddy --remote_cache_compression
+
+common:buildbuddy-rbe --config=buildbuddy
+common:buildbuddy-rbe --remote_executor=grpcs://remote.buildbuddy.io
+common:buildbuddy-rbe --remote_local_fallback=false
+common:buildbuddy-rbe --strategy=remote
+
+# Cargo's workspace lint policy, expressed for the rules_rust clippy aspect.
+build:clippy --aspects=@rules_rust//rust:defs.bzl%rust_clippy_aspect
+build:clippy --output_groups=+clippy_checks
+build:clippy --@rules_rust//rust/settings:clippy.toml=//:clippy.toml
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Dwarnings
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Wclippy::pedantic
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Wclippy::unwrap_used
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Wclippy::expect_used
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Wclippy::panic
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Wclippy::indexing_slicing
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Wclippy::string_slice
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Wclippy::unchecked_time_subtraction
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Dclippy::dbg_macro
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Dclippy::todo
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Dclippy::unimplemented
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Dclippy::undocumented_unsafe_blocks
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Wclippy::multiple_unsafe_ops_per_block
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Wclippy::await_holding_lock
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Wclippy::await_holding_refcell_ref
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Aclippy::missing_errors_doc
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Aclippy::missing_panics_doc
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Aclippy::module_name_repetitions
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Aclippy::must_use_candidate
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Aclippy::similar_names
+build:clippy --@rules_rust//rust/settings:clippy_flag=-Aclippy::too_many_lines

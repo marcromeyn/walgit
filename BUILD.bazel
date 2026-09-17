@@ -1,0 +1,57 @@
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "Cargo.lock",
+    "Cargo.toml",
+    "clippy.toml",
+    "rust-toolchain.toml",
+    "walgit.example.toml",
+    "walgit.standalone.toml",
+])
+
+filegroup(
+    name = "routing-client-sources",
+    srcs = glob([
+        "web/sdk/**/*.ts",
+        "web/src/**/*.ts",
+        "web/src/**/*.tsx",
+    ]),
+)
+
+test_suite(
+    name = "crates",
+    tests = [
+        "//crates/walgit-cli:all-tests",
+        "//crates/walgit-config:all-tests",
+        "//crates/walgit-git:all-tests",
+        "//crates/walgit-proto:all-tests",
+        "//crates/walgit-server:all-tests",
+        "//crates/walgit-store:all-tests",
+        "//crates/walgit-wal:all-tests",
+    ],
+)
+
+sh_test(
+    name = "e2e",
+    srcs = ["tests/e2e.sh"],
+    tags = ["external", "manual"],
+)
+
+sh_test(
+    name = "spec_matrix",
+    srcs = ["scripts/run-spec.sh"],
+    data = glob(["docs/spec/**", "scripts/*.sh"]),
+    args = ["fast"],
+    tags = ["manual"],
+)
+
+test_suite(
+    name = "ci",
+    tests = [
+        ":crates",
+        ":e2e",
+        ":spec_matrix",
+    ],
+)

@@ -1,0 +1,69 @@
+module(
+    name = "walgit",
+    version = "0.1.0",
+)
+
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "protobuf", version = "36.1.bcr.1", repo_name = "com_google_protobuf")
+bazel_dep(name = "rules_proto", version = "7.1.0")
+bazel_dep(name = "rules_rust", version = "0.74.0")
+bazel_dep(name = "rules_rust_prost", version = "0.74.0")
+bazel_dep(name = "rules_shell", version = "0.6.1")
+bazel_dep(name = "toolchains_llvm", version = "1.9.1")
+
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2024",
+    versions = ["1.97.1"],
+)
+use_repo(rust, "rust_toolchains")
+register_toolchains("@rust_toolchains//:all")
+
+# Cargo.toml and Cargo.lock remain the dependency source of truth for the
+# workspace. Workspace packages themselves are built by the BUILD files below.
+crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+crate.from_cargo(
+    name = "walgit_crates",
+    cargo_lockfile = "//:Cargo.lock",
+    manifests = ["//:Cargo.toml"],
+    supported_platform_triples = [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-apple-darwin",
+        "x86_64-unknown-linux-gnu",
+    ],
+)
+
+# rules_rust_prost needs executable protoc plugins in addition to the runtime
+# crates in the workspace lock. Pin the runtimes to the exact Cargo.lock
+# versions so Cargo and Bazel generate the same public Rust API.
+crate.spec(package = "prost", repositories = ["walgit_prost_crates"], version = "=0.14.4")
+crate.spec(package = "prost-types", repositories = ["walgit_prost_crates"], version = "=0.14.4")
+crate.spec(package = "tonic", repositories = ["walgit_prost_crates"], version = "=0.14.6")
+crate.spec(package = "protoc-gen-prost", repositories = ["walgit_prost_crates"], version = "=0.5.0")
+crate.spec(package = "protoc-gen-tonic", repositories = ["walgit_prost_crates"], version = "=0.5.0")
+crate.annotation(
+    crate = "protoc-gen-prost",
+    gen_binaries = ["protoc-gen-prost"],
+    repositories = ["walgit_prost_crates"],
+)
+crate.annotation(
+    crate = "protoc-gen-tonic",
+    gen_binaries = ["protoc-gen-tonic"],
+    repositories = ["walgit_prost_crates"],
+)
+crate.from_specs(name = "walgit_prost_crates")
+use_repo(crate, "walgit_crates", "walgit_prost_crates")
+
+# Native dependencies (ring, aws-lc, mimalloc, libc) compile with a downloaded,
+# review-pinned LLVM distribution. Do not register Bazel's ambient host C/C++
+# toolchain: local and remote actions resolve the same hermetic toolchain.
+llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
+llvm.toolchain(
+    name = "llvm_toolchain",
+    llvm_version = "21.1.8",
+)
+use_repo(llvm, "llvm_toolchain")
+register_toolchains("@llvm_toolchain//:all")
+
+register_toolchains("//bazel/toolchains/prost:toolchain")
