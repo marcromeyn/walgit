@@ -21,6 +21,12 @@ use std::path::{Path, PathBuf};
 type TestResult = anyhow::Result<()>;
 
 fn root() -> PathBuf {
+    if let (Ok(test_srcdir), Ok(test_workspace)) = (
+        std::env::var("TEST_SRCDIR"),
+        std::env::var("TEST_WORKSPACE"),
+    ) {
+        return Path::new(&test_srcdir).join(test_workspace);
+    }
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
@@ -92,6 +98,7 @@ fn repo_scoped_routes_start_with_owner_repo() -> TestResult {
     let files = [
         "crates/walgit-server/src/lib.rs",
         "crates/walgit-server/src/web/api.rs",
+        "crates/walgit-server/src/web/repo_api.rs",
         "crates/walgit-server/src/web/v1.rs",
         "crates/walgit-server/src/web/ui.rs",
     ];
@@ -235,6 +242,7 @@ fn deleted_aliases_are_gone() {
     for rel in [
         "crates/walgit-server/src/lib.rs",
         "crates/walgit-server/src/web/api.rs",
+        "crates/walgit-server/src/web/repo_api.rs",
         "crates/walgit-server/src/web/v1.rs",
         "crates/walgit-server/src/web/ui.rs",
         "crates/walgit-server/src/settings.rs",

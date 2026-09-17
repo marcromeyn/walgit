@@ -157,20 +157,21 @@ pub fn router(state: Arc<AppState>) -> Router {
     // credentials (a 401 there means no revision can ever start — seen 2026-08-20),
     // and they expose only a status word and a pending-prewarm count.
     let gated = Router::new()
-        .merge(
-            web::ui::router(state.clone())
-                .with_state(())
-                .layer(web_compression.clone()),
-        )
+        .merge(ui_router(state.clone(), web_compression.clone()))
         .route("/metrics", get(metrics::metrics_route))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             web::require_auth,
         ));
 
-    Router::new()
+    let app = Router::new()
         .merge(
             web::api::router(state.clone())
+                .with_state(())
+                .layer(web_compression.clone()),
+        )
+        .merge(
+            web::repo_api::router(state.clone())
                 .with_state(())
                 .layer(web_compression.clone()),
         )
@@ -182,13 +183,6 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(gated)
         .route("/healthz", get(health::healthz))
         .route("/readyz", get(health::readyz))
-        // The SDK is a static artefact with no data in it; it must load from a
-        // `<script>` tag on another site before any session exists (D20).
-        .route("/repos.js", get(web::ui::sdk_asset))
-        .route("/repos.mjs", get(web::ui::sdk_asset))
-        // `/services/public/*` is the one open area: data-free routes only, never a
-        // bearer, never repo data — today exactly the installer, everything else 404.
-        .merge(web::ui::public_router(state.clone()).with_state(()))
         .merge(web::login::router(state.clone()).with_state(()))
         // Events bridge wake-up (docs/EVENTS.md): the Pub/Sub push envelope of
         // a GCS notification. Authenticated (the push SA's ID token); 404 when
@@ -246,8 +240,42 @@ pub fn router(state: Arc<AppState>) -> Router {
         .layer(axum::middleware::from_fn_with_state(
             state.inflight.clone(),
             middleware::request_id,
-        ))
+        ));
+
+    with_ui_public_routes(app, state)
+}
+
+#[cfg(feature = "web")]
+fn ui_router(
+    state: Arc<AppState>,
+    compression: tower_http::compression::CompressionLayer,
+) -> Router<Arc<AppState>> {
+    web::ui::router(state).with_state(()).layer(compression)
+}
+
+#[cfg(not(feature = "web"))]
+fn ui_router(
+    _state: Arc<AppState>,
+    _compression: tower_http::compression::CompressionLayer,
+) -> Router<Arc<AppState>> {
+    Router::new()
+}
+
+#[cfg(feature = "web")]
+fn with_ui_public_routes(app: Router<Arc<AppState>>, state: Arc<AppState>) -> Router {
+    // The SDK is a static artefact with no data in it; it must load from a
+    // `<script>` tag on another site before any session exists (D20).
+    app.route("/repos.js", get(web::ui::sdk_asset))
+        .route("/repos.mjs", get(web::ui::sdk_asset))
+        // `/services/public/*` is the one open area: data-free routes only, never a
+        // bearer, never repo data — today exactly the installer, everything else 404.
+        .merge(web::ui::public_router(state.clone()).with_state(()))
         .with_state(state)
+}
+
+#[cfg(not(feature = "web"))]
+fn with_ui_public_routes(app: Router<Arc<AppState>>, state: Arc<AppState>) -> Router {
+    app.with_state(state)
 }
 
 async fn host_from_authority(mut req: Request<Body>) -> Request<Body> {

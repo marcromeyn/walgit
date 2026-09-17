@@ -380,11 +380,14 @@ async fn api_md_conformance() -> TestResult {
 
     // unknown repo
     assert_eq!(get(&server, "/o/nope/api/refs").await?.0, 404);
-    // page route -> index.html
-    let (st, html, ct) = get(&server, "/o/r/tree/main/anything").await?;
-    assert_eq!(st, 200);
-    assert!(ct.unwrap_or_default().starts_with("text/html"));
-    assert!(html.contains("<html"));
+    #[cfg(feature = "web")]
+    {
+        // Page routes belong to the optional embedded UI.
+        let (st, html, ct) = get(&server, "/o/r/tree/main/anything").await?;
+        assert_eq!(st, 200);
+        assert!(ct.unwrap_or_default().starts_with("text/html"));
+        assert!(html.contains("<html"));
+    }
     Ok(())
 }
 

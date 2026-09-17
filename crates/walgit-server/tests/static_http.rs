@@ -167,6 +167,7 @@ async fn lfs_object_full_http_contract() -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "web")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn ui_assets_etag_304_and_precompressed() -> Result<()> {
     let server = Server::start().await?;

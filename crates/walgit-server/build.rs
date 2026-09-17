@@ -12,6 +12,9 @@ const PLACEHOLDER: &str = "<!doctype html>\n<html lang=\"en\"><head><meta charse
 
 fn main() -> std::io::Result<()> {
     println!("cargo:rustc-env=WALGIT_BUILD_SHA={}", build_sha());
+    if std::env::var_os("CARGO_FEATURE_WEB").is_none() {
+        return Ok(());
+    }
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
     let dist = manifest.join("../../web/dist");
     println!("cargo:rerun-if-changed={}", dist.display());

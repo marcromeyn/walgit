@@ -1,7 +1,9 @@
 pub mod api;
 pub mod login;
 pub mod objects;
+pub mod repo_api;
 pub mod trailers;
+#[cfg(feature = "web")]
 pub mod ui;
 pub mod v1;
 

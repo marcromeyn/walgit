@@ -4,6 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+default = ["web"]
+web = ["dep:rust-embed"]
+
 [dependencies]
 humantime.workspace = true
 walgit-proto.workspace = true
@@ -23,7 +27,7 @@ tracing.workspace = true
 serde.workspace = true
 prost.workspace = true
 prost-types.workspace = true
-rust-embed.workspace = true
+rust-embed = { workspace = true, optional = true }
 serde_json.workspace = true
 libc.workspace = true
 chrono.workspace = true

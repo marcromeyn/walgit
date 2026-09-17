@@ -338,7 +338,8 @@ async fn v1_surface_and_browser_lane() -> TestResult {
     assert!(hdr(&h, "content-type").starts_with("text/html"));
     assert!(text.contains("repos:authenticated"));
 
-    // the SDK artefacts (built into web/dist by `pnpm run build`) at their permanent URLs
+    // The SDK artefacts exist only with the default-on Cargo `web` feature.
+    #[cfg(feature = "web")]
     for name in ["/repos.js", "/repos.mjs"] {
         let (st, body, h) = req(&server, reqwest::Method::GET, name, &[]).await?;
         assert_eq!(st, 200, "{name}");
