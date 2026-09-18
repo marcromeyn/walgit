@@ -9,7 +9,12 @@ bazel_dep(name = "rules_proto", version = "7.1.0")
 bazel_dep(name = "rules_rust", version = "0.74.0")
 bazel_dep(name = "rules_rust_prost", version = "0.74.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
-bazel_dep(name = "toolchains_llvm", version = "1.9.1")
+# The hermetic C toolchain is a build-environment concern of THIS module's CI,
+# not part of walgit's public interface: toolchains_llvm only permits the llvm
+# extension from the root module, so downstream bazel_dep consumers (the assign
+# workspace) must not evaluate it. dev_dependency scopes both the dep and the
+# extension to builds where walgit is the root.
+bazel_dep(name = "toolchains_llvm", version = "1.9.1", dev_dependency = True)
 
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
 rust.toolchain(
@@ -58,12 +63,12 @@ use_repo(crate, "walgit_crates", "walgit_prost_crates")
 # Native dependencies (ring, aws-lc, mimalloc, libc) compile with a downloaded,
 # review-pinned LLVM distribution. Do not register Bazel's ambient host C/C++
 # toolchain: local and remote actions resolve the same hermetic toolchain.
-llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
+llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm", dev_dependency = True)
 llvm.toolchain(
     name = "llvm_toolchain",
     llvm_version = "21.1.8",
 )
 use_repo(llvm, "llvm_toolchain")
-register_toolchains("@llvm_toolchain//:all")
+register_toolchains("@llvm_toolchain//:all", dev_dependency = True)
 
 register_toolchains("//bazel/toolchains/prost:toolchain")
