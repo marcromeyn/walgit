@@ -28,6 +28,9 @@ register_toolchains("@rust_toolchains//:all")
 # workspace. Workspace packages themselves are built by the BUILD files below.
 crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
 crate.from_cargo(
+    # Consumers (the assign workspace) resolve this module transitively;
+    # crate_universe requires a shipped lockfile across module boundaries.
+    lockfile = "//:cargo-bazel-lock.json",
     name = "walgit_crates",
     cargo_lockfile = "//:Cargo.lock",
     manifests = ["//:Cargo.toml"],
