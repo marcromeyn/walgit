@@ -22,6 +22,7 @@ pub mod fault;
 #[cfg(feature = "gcs")]
 pub mod gcs;
 pub mod memory;
+pub mod posix;
 #[cfg(feature = "s3")]
 pub mod s3;
 pub mod util;

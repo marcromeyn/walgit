@@ -24,6 +24,7 @@ walgit_rust_crate(
         "@walgit_crates//:rand",
         "@walgit_crates//:reqwest",
         "@walgit_crates//:serde",
+        "@walgit_crates//:sha2",
         "@walgit_crates//:thiserror",
         "@walgit_crates//:tokio",
         "@walgit_crates//:tokio-stream",

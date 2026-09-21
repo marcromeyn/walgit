@@ -60,7 +60,11 @@ crate.annotation(
     gen_binaries = ["protoc-gen-tonic"],
     repositories = ["walgit_prost_crates"],
 )
-crate.from_specs(name = "walgit_prost_crates")
+crate.from_specs(
+    name = "walgit_prost_crates",
+    # Same module-boundary rule as the main universe above.
+    lockfile = "//:cargo-bazel-prost-lock.json",
+)
 use_repo(crate, "walgit_crates", "walgit_prost_crates")
 
 # Native dependencies (ring, aws-lc, mimalloc, libc) compile with a downloaded,
