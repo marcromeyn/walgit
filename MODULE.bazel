@@ -26,11 +26,12 @@ register_toolchains("@rust_toolchains//:all")
 
 # Cargo.toml and Cargo.lock remain the dependency source of truth for the
 # workspace. Workspace packages themselves are built by the BUILD files below.
-crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+# dev_dependency: consumers of this module (the assign workspace) take the
+# crates through Cargo, not through @walgit_crates; rules_rust cannot evaluate
+# a transitive crate universe (execute() aborts even with shipped lockfiles),
+# and dev extensions are simply not evaluated for non-root modules.
+crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate", dev_dependency = True)
 crate.from_cargo(
-    # Consumers (the assign workspace) resolve this module transitively;
-    # crate_universe requires a shipped lockfile across module boundaries.
-    lockfile = "//:cargo-bazel-lock.json",
     name = "walgit_crates",
     cargo_lockfile = "//:Cargo.lock",
     manifests = ["//:Cargo.toml"],
@@ -60,11 +61,7 @@ crate.annotation(
     gen_binaries = ["protoc-gen-tonic"],
     repositories = ["walgit_prost_crates"],
 )
-crate.from_specs(
-    name = "walgit_prost_crates",
-    # Same module-boundary rule as the main universe above.
-    lockfile = "//:cargo-bazel-prost-lock.json",
-)
+crate.from_specs(name = "walgit_prost_crates")
 use_repo(crate, "walgit_crates", "walgit_prost_crates")
 
 # Native dependencies (ring, aws-lc, mimalloc, libc) compile with a downloaded,
