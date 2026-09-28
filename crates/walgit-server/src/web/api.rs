@@ -20,9 +20,9 @@ use std::future::Future;
 use std::sync::Arc;
 
 use axum::{
-    Router,
+    Json, Router,
     extract::{Path, Query, State},
-    http::{HeaderMap, header},
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
     routing::get,
 };
@@ -42,6 +42,37 @@ const DEFAULT_PAGE: usize = 100;
 const MAX_PAGE: usize = 1000;
 /// Store key prefix (inside the repo prefix) of the shared render cache.
 const SHARED_CACHE_PREFIX: &str = "cache/api/v1/";
+const REF_STREAM_FAMILY: &str = "refs/v1";
+const REF_STREAM_PAGE: u64 = 256;
+
+#[derive(serde::Deserialize, Default)]
+struct RefStreamQuery {
+    family: Option<String>,
+    after: Option<u64>,
+}
+
+#[derive(Serialize)]
+struct RefStreamCursor {
+    family: &'static str,
+    seq: String,
+}
+
+#[derive(Serialize)]
+struct RefStreamPage {
+    cursor: RefStreamCursor,
+    head: String,
+    more: bool,
+    events: Vec<crate::events::RefEvent>,
+}
+
+#[derive(Serialize)]
+struct RefStreamGap {
+    code: &'static str,
+    family: &'static str,
+    requested: String,
+    oldest: String,
+    head: String,
+}
 
 #[derive(Serialize, Clone)]
 pub(crate) struct RefInfo {
@@ -204,6 +235,7 @@ pub fn router(state: Arc<AppState>) -> Router {
     for base in REPO_API_BASES {
         r = r
             .route(&format!("{base}/refs"), get(refs))
+            .route(&format!("{base}/ref-events"), get(ref_events))
             .route(&format!("{base}/refs/{{kind}}"), get(ref_list))
             .route(&format!("{base}/resolve"), get(resolve_root))
             .route(&format!("{base}/resolve/"), get(resolve_root))
@@ -499,6 +531,60 @@ pub(crate) async fn owner_repos(
 }
 
 // ---- refs --------------------------------------------------------------------
+
+/// Pull the committed ref-event stream by WAL cursor. The cursor advances
+/// through non-ref entries too, so an empty page can still move the consumer
+/// forward. A stale cursor is a 409 with a machine-readable retained floor.
+async fn ref_events(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path((owner, repo_name)): Path<(String, String)>,
+    Query(q): Query<RefStreamQuery>,
+) -> Result<Response, ApiError> {
+    if q.family.as_deref().is_some_and(|f| f != REF_STREAM_FAMILY) {
+        return Err(ApiError::BadRequest(
+            "unknown ref-event cursor family".into(),
+        ));
+    }
+    let after = q.after.unwrap_or(0);
+    let handle = open(&st, &headers, &owner, &repo_name).await?;
+    let window = handle
+        .read_log_window(after, REF_STREAM_PAGE)
+        .await
+        .map_err(crate::smart::wal_err)?;
+    let mut response = if after < window.min_seq.saturating_sub(1) || after > window.head_seq {
+        (
+            StatusCode::CONFLICT,
+            Json(RefStreamGap {
+                code: "WAL_GAP",
+                family: REF_STREAM_FAMILY,
+                requested: after.to_string(),
+                oldest: window.min_seq.to_string(),
+                head: window.head_seq.to_string(),
+            }),
+        )
+            .into_response()
+    } else {
+        let mut events = Vec::new();
+        let id =
+            walgit_git::RepoId::new(&owner, &repo_name).map_err(|_| not_found("repository"))?;
+        crate::events::refs_from_entries(&id, &window.entries, &mut events);
+        Json(RefStreamPage {
+            cursor: RefStreamCursor {
+                family: REF_STREAM_FAMILY,
+                seq: window.through_seq.to_string(),
+            },
+            head: window.head_seq.to_string(),
+            more: window.through_seq < window.head_seq,
+            events,
+        })
+        .into_response()
+    };
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
+    Ok(response)
+}
 
 async fn refs(
     State(st): State<Arc<AppState>>,

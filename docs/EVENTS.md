@@ -119,3 +119,28 @@ sweep_interval = "5m"
 2. Dedup on `(repo, _walgit.seq, ref_name)` (or on `X-Walgit-Delivery` per batch).
 3. Order by `_walgit.seq` within a repo; do not assume order across repos.
 4. On a gap alert from the bridge, backfill from `walgit wal ls <repo> --from <seq>`.
+
+## Pull cursor for ref changes
+
+`GET /<owner>/<repo>/api/ref-events?family=refs%2Fv1&after=<seq>` (or the
+`api-browser` lane) returns a bounded JSON page from the committed WAL. It uses
+normal repository read authorization and `Cache-Control: no-store`. `after` is
+exclusive and defaults to `0`; `family` defaults to `refs/v1`. The response is:
+
+```json
+{"cursor":{"family":"refs/v1","seq":"42"},"head":"45","more":true,"events":[]}
+```
+
+`events` uses the exact ref-event shape above. The cursor advances through
+non-ref entries and through empty pages. A consumer persists the returned
+`(family, seq)` only after applying the entire page, then requests `after=seq`
+until `more` is false. The server reads at most 256 WAL positions per page
+against one fresh manifest. The sequence is serialized as a decimal string to
+preserve all `u64` values in JavaScript.
+
+If the requested sequence is older than the retained WAL window or ahead of
+the current head (for example after repository recreation), HTTP 409
+returns `{"code":"WAL_GAP","family":"refs/v1","requested":"0","oldest":"41","head":"45"}`.
+The consumer must rebuild from a current ref snapshot before resuming at the
+current head. Unknown families return HTTP 400. This route is a pull source for
+consumers; it does not alter the webhook bridge's delivery contract.

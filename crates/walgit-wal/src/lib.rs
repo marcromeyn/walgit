@@ -9,6 +9,7 @@ mod handle;
 mod index_cache;
 pub mod lockwait;
 mod log_reader;
+pub use log_reader::LogWindow;
 pub mod progress;
 mod publish;
 mod registry;

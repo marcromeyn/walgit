@@ -6,6 +6,52 @@ use walgit_store::{GetOptions, GetResult, ObjectStore};
 use crate::error::WalError;
 use crate::handle::RepoHandle;
 
+/// One bounded read against a single fresh manifest. `min_seq` is the first
+/// retained entry; callers must reject a cursor older than `min_seq - 1`.
+pub struct LogWindow {
+    pub min_seq: u64,
+    pub head_seq: u64,
+    pub through_seq: u64,
+    pub entries: Vec<LogEntry>,
+}
+
+pub async fn read_log_window(
+    handle: &RepoHandle,
+    after_seq: u64,
+    limit: u64,
+) -> Result<LogWindow, WalError> {
+    let (held, known) = handle.manifest_pair();
+    let manifest = match crate::sync::freshness_check(&handle.store, known.as_ref()).await? {
+        crate::sync::SyncOutcome::Unchanged => held,
+        crate::sync::SyncOutcome::Changed { manifest, .. } => manifest,
+    };
+    let head_seq = manifest.head_seq;
+    let min_seq = manifest.min_seq;
+    // A folded range is never represented by an empty successful page.
+    if after_seq < min_seq.saturating_sub(1) {
+        return Ok(LogWindow {
+            min_seq,
+            head_seq,
+            through_seq: after_seq,
+            entries: Vec::new(),
+        });
+    }
+    let through_seq = after_seq.saturating_add(limit.max(1)).min(head_seq);
+    let entries = read_log_manifest(
+        handle,
+        &manifest,
+        after_seq.saturating_add(1),
+        Some(through_seq),
+    )
+    .await?;
+    Ok(LogWindow {
+        min_seq,
+        head_seq,
+        through_seq,
+        entries,
+    })
+}
+
 /// Read log entries in [`from_seq`, `to_seq`]. If `to_seq` is None, read up to
 /// `manifest.head_seq`.
 pub(crate) async fn read_log_impl(

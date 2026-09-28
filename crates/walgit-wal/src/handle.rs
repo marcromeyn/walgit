@@ -1471,6 +1471,16 @@ impl RepoHandle {
         crate::log_reader::read_log_impl(self, from_seq, to_seq).await
     }
 
+    /// Read a bounded cursor page from one fresh manifest, including its
+    /// retained floor so HTTP consumers can report an explicit gap.
+    pub async fn read_log_window(
+        &self,
+        after_seq: u64,
+        limit: u64,
+    ) -> Result<crate::LogWindow, WalError> {
+        crate::log_reader::read_log_window(self, after_seq, limit).await
+    }
+
     // ---- internal helpers ----
 
     fn freshness_ttl_active(&self) -> bool {
